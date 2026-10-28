@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">CinéFamille</string>
+    <string name="nav_movies">Films</string>
+    <string name="nav_roulette">Tirage du Soir</string>
+    <string name="nav_add">Ajouter</string>
+    <string name="nav_family">Famille</string>
+    <string name="search_hint">Rechercher un film...</string>
+    <string name="filter_all">Tous</string>
+    <string name="filter_watched">Déjà vus</string>
+    <string name="filter_to_watch">À voir</string>
+    <string name="spin_button">Tirer au sort !</string>
+</resources>

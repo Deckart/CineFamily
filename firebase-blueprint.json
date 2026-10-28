@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CineFamilleFirestoreSchema",
+  "entities": {
+    "FamilyMember": {
+      "path": "/family_members/{memberId}",
+      "fields": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "avatarEmoji": { "type": "string" },
+        "colorHex": { "type": "number" },
+        "role": { "type": "string" },
+        "pinCode": { "type": "string" },
+        "preferredGenres": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "number" }
+      }
+    },
+    "Movie": {
+      "path": "/movies/{movieId}",
+      "fields": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "originalTitle": { "type": "string" },
+        "posterUrl": { "type": "string" },
+        "year": { "type": "number" },
+        "durationMinutes": { "type": "number" },
+        "genres": { "type": "string" },
+        "synopsis": { "type": "string" },
+        "director": { "type": "string" },
+        "rating": { "type": "number" },
+        "contentRating": { "type": "string" },
+        "addedByMemberId": { "type": "string" },
+        "addedByMemberName": { "type": "string" },
+        "addedByMemberEmoji": { "type": "string" },
+        "targetAudienceType": { "type": "string" },
+        "allowedMemberIds": { "type": "array", "items": { "type": "string" } },
+        "streamingServices": { "type": "array", "items": { "type": "string" } },
+        "isWatched": { "type": "boolean" },
+        "userNotes": { "type": "string" },
+        "familyVotes": { "type": "number" },
+        "reviews": { "type": "array" },
+        "createdAt": { "type": "number" }
+      }
+    }
+  }
+}

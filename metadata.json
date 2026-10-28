@@ -1,0 +1,6 @@
+{
+  "name": "CinéFamille",
+  "description": "Moteur de recommandation collaboratif et liste d'envies partagée de films en famille avec sélecteur aléatoire par membre.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
