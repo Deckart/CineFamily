@@ -1,4 +1,4 @@
-package cc.antinomia.cinefamily
+package com.example
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -59,28 +59,28 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import cc.antinomia.cinefamily.data.local.AppDatabase
-import cc.antinomia.cinefamily.data.local.FamilyMember
-import cc.antinomia.cinefamily.data.local.SessionManager
-import cc.antinomia.cinefamily.data.remote.UpdateDownloader
-import cc.antinomia.cinefamily.data.repository.MovieRepository
-import cc.antinomia.cinefamily.ui.components.ActiveMemberSelectorBar
-import cc.antinomia.cinefamily.ui.components.MovieDetailDialog
-import cc.antinomia.cinefamily.ui.components.UpdateDialog
-import cc.antinomia.cinefamily.ui.components.UpdateNoticeBanner
-import cc.antinomia.cinefamily.ui.screens.AddMovieScreen
-import cc.antinomia.cinefamily.ui.screens.FamilyScreen
-import cc.antinomia.cinefamily.ui.screens.LoginScreen
-import cc.antinomia.cinefamily.ui.screens.MovieListScreen
-import cc.antinomia.cinefamily.ui.screens.RandomSelectorScreen
-import cc.antinomia.cinefamily.ui.theme.CinemaDarkBackground
-import cc.antinomia.cinefamily.ui.theme.CinemaDarkSurface
-import cc.antinomia.cinefamily.ui.theme.CinemaGold
-import cc.antinomia.cinefamily.ui.theme.CinemaTextPrimary
-import cc.antinomia.cinefamily.ui.theme.CinemaTextSecondary
-import cc.antinomia.cinefamily.ui.theme.MyApplicationTheme
-import cc.antinomia.cinefamily.ui.viewmodel.MovieViewModel
-import cc.antinomia.cinefamily.ui.viewmodel.MovieViewModelFactory
+import com.example.data.local.AppDatabase
+import com.example.data.local.FamilyMember
+import com.example.data.local.SessionManager
+import com.example.data.remote.UpdateDownloader
+import com.example.data.repository.MovieRepository
+import com.example.ui.components.ActiveMemberSelectorBar
+import com.example.ui.components.MovieDetailDialog
+import com.example.ui.components.UpdateDialog
+import com.example.ui.components.UpdateNoticeBanner
+import com.example.ui.screens.AddMovieScreen
+import com.example.ui.screens.FamilyScreen
+import com.example.ui.screens.LoginScreen
+import com.example.ui.screens.MovieListScreen
+import com.example.ui.screens.RandomSelectorScreen
+import com.example.ui.theme.CinemaDarkBackground
+import com.example.ui.theme.CinemaDarkSurface
+import com.example.ui.theme.CinemaGold
+import com.example.ui.theme.CinemaTextPrimary
+import com.example.ui.theme.CinemaTextSecondary
+import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.viewmodel.MovieViewModel
+import com.example.ui.viewmodel.MovieViewModelFactory
 
 class MainActivity : ComponentActivity() {
 
