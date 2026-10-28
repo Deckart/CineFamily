@@ -22,18 +22,31 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      # Génère le wrapper gradlew manquant à la racine du projet
+      # 1. Génération du wrapper gradlew
       - name: Generate Gradle Wrapper
         run: gradle wrapper
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # Compilation de l'APK Debug
+      # 2. Création du debug.keystore attendu par le projet
+      - name: Create debug keystore
+        run: |
+          keytool -genkey -v \
+            -keystore debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      # 3. Compilation de l'APK Debug
       - name: Build APK (Debug)
         run: ./gradlew assembleDebug --stacktrace
 
-      # Export de l'APK dans les Artifacts GitHub
+      # 4. Export de l'APK dans les Artifacts GitHub
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
