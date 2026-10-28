@@ -230,6 +230,7 @@ fun MainAppScreen(viewModel: MovieViewModel) {
                     ),
                     modifier = Modifier.testTag("nav_tab_movies")
                 )
+
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
@@ -246,6 +247,7 @@ fun MainAppScreen(viewModel: MovieViewModel) {
                     ),
                     modifier = Modifier.testTag("nav_tab_roulette")
                 )
+
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
@@ -262,6 +264,7 @@ fun MainAppScreen(viewModel: MovieViewModel) {
                     ),
                     modifier = Modifier.testTag("nav_tab_add")
                 )
+
                 NavigationBarItem(
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 },
@@ -329,6 +332,7 @@ fun MainAppScreen(viewModel: MovieViewModel) {
                     onUpvote = { viewModel.upvoteMovie(it) },
                     onToggleInterested = { movie, member -> viewModel.toggleInterestedMember(movie, member) }
                 )
+
                 1 -> RandomSelectorScreen(
                     members = allMembers,
                     selectedViewerIds = selectedViewers,
@@ -350,6 +354,7 @@ fun MainAppScreen(viewModel: MovieViewModel) {
                     onMovieClick = { viewModel.openMovieDetail(it) },
                     onMarkWatched = { viewModel.toggleWatched(it) }
                 )
+
                 2 -> AddMovieScreen(
                     members = allMembers,
                     activeMember = activeMember,
@@ -399,6 +404,7 @@ fun MainAppScreen(viewModel: MovieViewModel) {
                         selectedTab = 0
                     }
                 )
+
                 3 -> FamilyScreen(
                     members = allMembers,
                     movies = allMovies,
