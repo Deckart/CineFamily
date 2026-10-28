@@ -1,9 +1,9 @@
-name: Build Android Kotlin APK
+name: Build Android APK
 
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch: # Permet de relancer la compilation manuellement d'un clic
+  workflow_dispatch:
 
 jobs:
   build:
@@ -22,15 +22,21 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      # Génère le wrapper gradlew manquant à la racine du projet
+      - name: Generate Gradle Wrapper
+        run: gradle wrapper
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # Compilation de l'APK Debug
       - name: Build APK (Debug)
         run: ./gradlew assembleDebug --stacktrace
 
+      # Export de l'APK dans les Artifacts GitHub
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: CineFamily-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 7
