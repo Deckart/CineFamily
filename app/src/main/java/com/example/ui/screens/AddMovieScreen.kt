@@ -45,6 +45,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -102,7 +104,9 @@ fun AddMovieScreen(
         targetAudienceType: String,
         allowedMemberIds: List<String>,
         streamingServices: List<String>,
-        userNotes: String
+        userNotes: String,
+        isPrivate: Boolean,
+        notifyFamily: Boolean
     ) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -114,6 +118,10 @@ fun AddMovieScreen(
     // Target audience: "FAMILY", "SOLO", "GROUP"
     var audienceType by remember { mutableStateOf("FAMILY") }
     val groupAllowedMembers = remember { mutableStateListOf<String>() }
+
+    // Private niche & Notification options
+    var isPrivateMovie by remember { mutableStateOf(false) }
+    var notifyFamily by remember { mutableStateOf(true) }
 
     // Streaming Services selection
     val selectedStreamingServices = remember { mutableStateListOf("Netflix") }
@@ -368,7 +376,100 @@ fun AddMovieScreen(
                     }
                 }
 
-                // 4. Note personnelle
+                // 4. Confidentialité & Notifications
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = CinemaDarkSurface),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CinemaDarkBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("4. Partage & Notifications", color = CinemaGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+
+                        // Private niche toggle
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                Text(
+                                    text = "🔒 Film perso / Niche (non partagé)",
+                                    color = CinemaTextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Ce film reste uniquement dans votre profil et est masqué pour les autres membres du foyer.",
+                                    color = CinemaTextSecondary,
+                                    fontSize = 10.sp,
+                                    lineHeight = 14.sp
+                                )
+                            }
+                            Switch(
+                                checked = isPrivateMovie,
+                                onCheckedChange = { checked ->
+                                    isPrivateMovie = checked
+                                    if (checked) {
+                                        audienceType = "SOLO"
+                                        notifyFamily = false
+                                    } else {
+                                        notifyFamily = true
+                                    }
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.Black,
+                                    checkedTrackColor = CinemaGold,
+                                    uncheckedThumbColor = CinemaTextSecondary,
+                                    uncheckedTrackColor = CinemaDarkSurfaceVariant
+                                ),
+                                modifier = Modifier.testTag("toggle_private_niche_switch")
+                            )
+                        }
+
+                        // Notify family toggle
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                Text(
+                                    text = "🔔 Notifier la famille",
+                                    color = if (isPrivateMovie) CinemaTextSecondary else CinemaTextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = if (isPrivateMovie) "Désactivé pour les films de niche personnels."
+                                    else "Envoie une alerte avec le bouton « Ça m'intéresse aussi ».",
+                                    color = CinemaTextSecondary,
+                                    fontSize = 10.sp,
+                                    lineHeight = 14.sp
+                                )
+                            }
+                            Switch(
+                                checked = notifyFamily && !isPrivateMovie,
+                                onCheckedChange = { checked ->
+                                    if (!isPrivateMovie) notifyFamily = checked
+                                },
+                                enabled = !isPrivateMovie,
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.Black,
+                                    checkedTrackColor = CinemaGold,
+                                    uncheckedThumbColor = CinemaTextSecondary,
+                                    uncheckedTrackColor = CinemaDarkSurfaceVariant
+                                ),
+                                modifier = Modifier.testTag("toggle_notify_family_switch")
+                            )
+                        }
+                    }
+                }
+
+                // 5. Note personnelle
                 OutlinedTextField(
                     value = userNoteText,
                     onValueChange = { userNoteText = it },
@@ -404,7 +505,9 @@ fun AddMovieScreen(
                             audienceType,
                             groupAllowedMembers.toList(),
                             selectedStreamingServices.toList(),
-                            userNoteText
+                            userNoteText,
+                            isPrivateMovie,
+                            notifyFamily && !isPrivateMovie
                         )
                         userNoteText = ""
                         manualTitle = ""
@@ -418,7 +521,13 @@ fun AddMovieScreen(
                 ) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("ENREGISTRER CE FILM DANS FIREBASE", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(
+                        if (isPrivateMovie) "ENREGISTRER EN FILM PRIVÉ 🔒"
+                        else "ENREGISTRER DANS LA FILMOTHÈQUE",
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
                 }
             }
         } else {

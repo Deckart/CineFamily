@@ -51,18 +51,24 @@ import com.example.ui.theme.CinemaTextPrimary
 import com.example.ui.theme.CinemaTextSecondary
 import com.example.ui.theme.VelvetRuby
 
+import androidx.compose.material.icons.filled.Notifications
+import com.example.data.model.MovieNotification
+
 @Composable
 fun ActiveMemberSelectorBar(
     activeMember: FamilyMember?,
     allMembers: List<FamilyMember>,
     pendingMemberForAuth: FamilyMember?,
     pinAuthError: String?,
+    notifications: List<MovieNotification> = emptyList(),
     onRequestSelectMember: (FamilyMember) -> Unit,
     onSubmitPinAuth: (String) -> Unit,
     onCancelPinAuth: () -> Unit,
+    onJoinMovie: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showMemberPicker by remember { mutableStateOf(false) }
+    var showNotificationsDialog by remember { mutableStateOf(false) }
     var enteredPin by remember { mutableStateOf("") }
 
     Row(
@@ -86,53 +92,105 @@ fun ActiveMemberSelectorBar(
             )
         }
 
-        // Active profile chip (Only Admin can switch accounts)
-        val isAdmin = activeMember?.isAdmin == true
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = CinemaDarkSurfaceVariant,
-            border = androidx.compose.foundation.BorderStroke(1.dp, if (isAdmin) CinemaGold else CinemaDarkBorder),
-            modifier = Modifier
-                .clickable(enabled = isAdmin) { showMemberPicker = true }
-                .testTag("switch_active_member_chip")
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // Notification Bell with unread indicator
+            val unreadCount = notifications.count { notif ->
+                activeMember != null && notif.addedByMemberId != activeMember.id && !notif.interestedMemberIds.contains(activeMember.id)
+            }
+
+            Surface(
+                shape = CircleShape,
+                color = if (unreadCount > 0) CinemaGold.copy(alpha = 0.2f) else CinemaDarkSurfaceVariant,
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (unreadCount > 0) CinemaGold else CinemaDarkBorder),
+                modifier = Modifier
+                    .clickable { showNotificationsDialog = true }
+                    .testTag("open_notifications_bell_btn")
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = activeMember?.colorHex?.let { Color(it) } ?: CinemaGold,
-                    modifier = Modifier.size(24.dp)
+                Box(
+                    modifier = Modifier.padding(7.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = activeMember?.avatarEmoji ?: "🎬",
-                            fontSize = 13.sp
+                    Icon(
+                        imageVector = Icons.Default.Notifications,
+                        contentDescription = "Notifications",
+                        tint = if (unreadCount > 0) CinemaGold else CinemaTextSecondary,
+                        modifier = Modifier.size(19.dp)
+                    )
+                    if (unreadCount > 0) {
+                        Surface(
+                            shape = CircleShape,
+                            color = VelvetRuby,
+                            modifier = Modifier
+                                .size(7.dp)
+                                .align(Alignment.TopEnd)
+                        ) {}
+                    }
+                }
+            }
+
+            // Active profile chip (Only Admin can switch accounts)
+            val isAdmin = activeMember?.isAdmin == true
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = CinemaDarkSurfaceVariant,
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (isAdmin) CinemaGold else CinemaDarkBorder),
+                modifier = Modifier
+                    .clickable(enabled = isAdmin) { showMemberPicker = true }
+                    .testTag("switch_active_member_chip")
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = activeMember?.colorHex?.let { Color(it) } ?: CinemaGold,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = activeMember?.avatarEmoji ?: "🎬",
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Text(
+                        text = activeMember?.name ?: "Choisir profil",
+                        color = CinemaTextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    if (isAdmin) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Default.SwapHoriz,
+                            contentDescription = "Changer",
+                            tint = CinemaGold,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Text(
-                    text = activeMember?.name ?: "Choisir profil",
-                    color = CinemaTextPrimary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                if (isAdmin) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.Default.SwapHoriz,
-                        contentDescription = "Changer",
-                        tint = CinemaGold,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
             }
         }
+    }
+
+    if (showNotificationsDialog) {
+        NotificationsDialog(
+            notifications = notifications,
+            activeMember = activeMember,
+            onJoinMovie = { movieId ->
+                onJoinMovie(movieId)
+            },
+            onOpenMovie = {},
+            onDismiss = { showNotificationsDialog = false }
+        )
     }
 
     // Profile selection picker

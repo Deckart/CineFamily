@@ -12,6 +12,9 @@ interface FamilyMemberDao {
     @Query("SELECT * FROM family_members ORDER BY createdAt ASC")
     fun getAllMembers(): Flow<List<FamilyMember>>
 
+    @Query("SELECT * FROM family_members ORDER BY createdAt ASC")
+    suspend fun getAllMembersList(): List<FamilyMember>
+
     @Query("SELECT * FROM family_members WHERE id = :id LIMIT 1")
     suspend fun getMemberById(id: String): FamilyMember?
 

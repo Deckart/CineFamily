@@ -9,6 +9,7 @@ import com.example.data.local.Movie
 import com.example.data.local.SessionManager
 import com.example.data.model.AppUpdateInfo
 import com.example.data.model.DeletedMemberInfo
+import com.example.data.model.MovieNotification
 import com.example.data.model.MovieSearchResult
 import com.example.data.model.Review
 import com.example.data.remote.DownloadState
@@ -48,7 +49,8 @@ data class FilterState(
     val duration: DurationFilter = DurationFilter.ALL,
     val status: WatchStatusFilter = WatchStatusFilter.TO_WATCH,
     val audienceType: String? = null, // "FAMILY", "SOLO", "GROUP"
-    val streamingService: String? = null // "Netflix", "Amazon Prime Video", "Gratuit"
+    val streamingService: String? = null, // "Netflix", "Amazon Prime Video", "Gratuit"
+    val showOnlyPrivateNiche: Boolean = false
 )
 
 class MovieViewModel(
@@ -61,6 +63,7 @@ class MovieViewModel(
     val currentVersionName: String = BuildConfig.VERSION_NAME
 
     val appUpdateInfo: StateFlow<AppUpdateInfo?> = repository.appUpdateInfo
+    val movieNotifications: StateFlow<List<MovieNotification>> = repository.movieNotifications
 
     private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.Idle)
     val downloadState: StateFlow<DownloadState> = _downloadState.asStateFlow()
@@ -157,6 +160,21 @@ class MovieViewModel(
     // Filtered movies respecting privacy & active member view
     val filteredMovies: StateFlow<List<Movie>> = combine(allMovies, _filterState, _activeMember) { movies, filter, currentMember ->
         movies.filter { movie ->
+            // Private niche movie check: strictly personal, only visible to the author
+            if (movie.isPrivate && (currentMember == null || movie.addedByMemberId != currentMember.id)) {
+                return@filter false
+            }
+
+            // If user explicitly asks for private niche list:
+            if (filter.showOnlyPrivateNiche) {
+                if (!movie.isPrivate) return@filter false
+            } else {
+                // In main shared catalog, don't mix personal niche movies unless member filter is on
+                if (movie.isPrivate && filter.memberId == null) {
+                    return@filter false
+                }
+            }
+
             // Privacy check: Solo movies of other members are hidden from common list unless admin
             val isVisibleToCurrentMember = when (movie.targetAudienceType) {
                 "FAMILY" -> true
@@ -432,6 +450,9 @@ class MovieViewModel(
         val isAllFamily = viewers.size == allMemberIds.size
 
         return allMovies.value.filter { movie ->
+            // Exclude private niche movies from family roulette
+            if (movie.isPrivate) return@filter false
+
             // Unwatched first
             if (movie.isWatched) return@filter false
 
@@ -530,6 +551,11 @@ class MovieViewModel(
         _selectedOnlineMovie.value = null
     }
 
+    fun togglePrivateNicheFilter() {
+        val current = _filterState.value.showOnlyPrivateNiche
+        _filterState.value = _filterState.value.copy(showOnlyPrivateNiche = !current)
+    }
+
     // Add Movie
     fun addMovieToWishlist(
         title: String,
@@ -546,7 +572,9 @@ class MovieViewModel(
         targetAudienceType: String = "FAMILY",
         allowedMemberIds: List<String> = emptyList(),
         streamingServices: List<String> = listOf("Netflix"),
-        userNotes: String = ""
+        userNotes: String = "",
+        isPrivate: Boolean = false,
+        notifyFamily: Boolean = true
     ) {
         viewModelScope.launch {
             val member = addedBy ?: _activeMember.value ?: allMembers.value.firstOrNull() ?: FamilyMember(
@@ -580,14 +608,30 @@ class MovieViewModel(
                 targetAudienceType = targetAudienceType,
                 allowedMemberIds = allowedStr,
                 streamingServices = streamingStr,
-                reviewsJson = ""
+                reviewsJson = "",
+                isPrivate = isPrivate
             )
 
-            repository.insertMovie(movie)
+            repository.insertMovie(movie, notifyFamily = notifyFamily)
             _selectedOnlineMovie.value = null
             _onlineQuery.value = ""
             _onlineSearchResults.value = emptyList()
-            _userFeedback.value = "\"${movie.title}\" synchronisé dans la DB Firebase !"
+
+            _userFeedback.value = if (isPrivate) {
+                "« ${movie.title} » ajouté à votre liste perso privée 🔒 (non partagé)."
+            } else if (notifyFamily) {
+                "« ${movie.title} » ajouté et notification envoyée à la famille 🔔 !"
+            } else {
+                "« ${movie.title} » ajouté sans notification."
+            }
+        }
+    }
+
+    fun joinMovieFromNotification(movieId: String) {
+        viewModelScope.launch {
+            val member = _activeMember.value ?: return@launch
+            repository.joinMovieViewers(movieId, member.id)
+            _userFeedback.value = "Vous avez rejoint les spectateurs du film 🙋 !"
         }
     }
 

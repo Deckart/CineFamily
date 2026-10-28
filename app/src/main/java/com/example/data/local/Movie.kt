@@ -30,5 +30,7 @@ data class Movie(
     // Streaming providers
     val streamingServices: String = "Netflix", // e.g. "Netflix, Amazon Prime Video, Gratuit"
     // User Reviews summary & details
-    val reviewsJson: String = ""
+    val reviewsJson: String = "",
+    // Private personal niche list (hidden from family)
+    val isPrivate: Boolean = false
 )

@@ -7,8 +7,11 @@ import com.example.data.local.FamilyMemberDao
 import com.example.data.local.Movie
 import com.example.data.local.MovieDao
 import com.example.data.model.DeletedMemberInfo
+import com.example.data.model.MovieNotification
 import com.example.data.model.MovieSearchResult
 import com.example.data.model.Review
+import com.example.data.local.SessionManager
+import com.example.util.NotificationHelper
 import com.example.data.remote.OmdbMovieDetail
 import com.example.data.remote.ImdbSuggestionService
 import com.example.data.remote.OmdbApiService
@@ -41,6 +44,9 @@ class MovieRepository(
     val allMembers: Flow<List<FamilyMember>> = memberDao.getAllMembers()
     private val _deletedMembers = kotlinx.coroutines.flow.MutableStateFlow<List<DeletedMemberInfo>>(emptyList())
     val deletedMembers: kotlinx.coroutines.flow.StateFlow<List<DeletedMemberInfo>> = _deletedMembers
+    private val _movieNotifications = kotlinx.coroutines.flow.MutableStateFlow<List<MovieNotification>>(emptyList())
+    val movieNotifications: kotlinx.coroutines.flow.StateFlow<List<MovieNotification>> = _movieNotifications
+    private var lastNotificationCheckTime = System.currentTimeMillis() - 30_000L
     private val _appUpdateInfo = kotlinx.coroutines.flow.MutableStateFlow<com.example.data.model.AppUpdateInfo?>(null)
 
     private val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
@@ -91,12 +97,48 @@ class MovieRepository(
                         targetAudienceType = data["targetAudienceType"] as? String ?: "FAMILY",
                         allowedMemberIds = data["allowedMemberIds"] as? String ?: "all",
                         streamingServices = data["streamingServices"] as? String ?: "Netflix",
-                        reviewsJson = data["reviewsJson"] as? String ?: ""
+                        reviewsJson = data["reviewsJson"] as? String ?: "",
+                        isPrivate = data["isPrivate"] as? Boolean ?: false
                     )
                     movieDao.insertMovie(movie)
                 }
             }
         }
+
+        db.collection("movie_notifications")
+            .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            .limit(50)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) return@addSnapshotListener
+                val notifs = mutableListOf<MovieNotification>()
+                for (doc in snapshot.documents) {
+                    val data = doc.data ?: continue
+                    val notif = MovieNotification(
+                        id = doc.id,
+                        movieId = data["movieId"] as? String ?: doc.id,
+                        movieTitle = data["movieTitle"] as? String ?: "",
+                        moviePosterUrl = data["moviePosterUrl"] as? String ?: "",
+                        addedByMemberId = data["addedByMemberId"] as? String ?: "",
+                        addedByMemberName = data["addedByMemberName"] as? String ?: "",
+                        addedByMemberEmoji = data["addedByMemberEmoji"] as? String ?: "🎬",
+                        targetAudienceType = data["targetAudienceType"] as? String ?: "FAMILY",
+                        timestamp = (data["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis(),
+                        interestedMemberIds = (data["interestedMemberIds"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                    )
+                    notifs.add(notif)
+                }
+                _movieNotifications.value = notifs
+
+                // Trigger Android system notification for newly added films by other members
+                val latest = notifs.firstOrNull()
+                if (latest != null && latest.timestamp > lastNotificationCheckTime) {
+                    val currentMemberId = SessionManager(context).getLoggedInMemberId()
+                    if (currentMemberId != null && latest.addedByMemberId != currentMemberId) {
+                        NotificationHelper.showNewMovieNotification(context, latest, currentMemberId)
+                    }
+                    lastNotificationCheckTime = latest.timestamp
+                }
+            }
 
         db.collection("family_members").addSnapshotListener { snapshot, error ->
             if (error != null || snapshot == null) return@addSnapshotListener
@@ -196,7 +238,7 @@ class MovieRepository(
         } catch (_: Exception) {}
     }
 
-    suspend fun insertMovie(movie: Movie) = withContext(Dispatchers.IO) {
+    suspend fun insertMovie(movie: Movie, notifyFamily: Boolean = true) = withContext(Dispatchers.IO) {
         movieDao.insertMovie(movie)
         try {
             val map = hashMapOf(
@@ -220,12 +262,80 @@ class MovieRepository(
                 "targetAudienceType" to movie.targetAudienceType,
                 "allowedMemberIds" to movie.allowedMemberIds,
                 "streamingServices" to movie.streamingServices,
-                "reviewsJson" to movie.reviewsJson
+                "reviewsJson" to movie.reviewsJson,
+                "isPrivate" to movie.isPrivate
             )
             firestore?.collection("movies")?.document(movie.id)?.set(map, SetOptions.merge())
+
+            // Post notification if shared and not private niche film
+            if (notifyFamily && !movie.isPrivate) {
+                val notifMap = hashMapOf(
+                    "movieId" to movie.id,
+                    "movieTitle" to movie.title,
+                    "moviePosterUrl" to movie.posterUrl,
+                    "addedByMemberId" to movie.addedByMemberId,
+                    "addedByMemberName" to movie.addedByMemberName,
+                    "addedByMemberEmoji" to movie.addedByMemberEmoji,
+                    "targetAudienceType" to movie.targetAudienceType,
+                    "timestamp" to System.currentTimeMillis(),
+                    "interestedMemberIds" to listOf(movie.addedByMemberId)
+                )
+                firestore?.collection("movie_notifications")?.document(movie.id)?.set(notifMap, SetOptions.merge())
+            }
         } catch (e: Exception) {
             // Offline fallback
         }
+    }
+
+    suspend fun joinMovieViewers(movieId: String, memberId: String) = withContext(Dispatchers.IO) {
+        val movie = movieDao.getMovieById(movieId) ?: return@withContext
+        val allMemberIds = try {
+            memberDao.getAllMembersList().map { it.id }.toSet()
+        } catch (_: Exception) {
+            emptySet()
+        }
+
+        val currentInterested: Set<String> = when (movie.targetAudienceType) {
+            "FAMILY" -> allMemberIds
+            "SOLO" -> {
+                val ids = movie.allowedMemberIds.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                if (ids.isNotEmpty() && ids.first() != "all") ids.toSet()
+                else setOf(movie.addedByMemberId).filter { it.isNotEmpty() }.toSet()
+            }
+            "GROUP" -> {
+                if (movie.allowedMemberIds == "all") allMemberIds
+                else movie.allowedMemberIds.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+            }
+            else -> allMemberIds
+        }
+
+        if (currentInterested.contains(memberId)) return@withContext
+
+        val newSet = currentInterested + memberId
+        val updatedAudienceType: String
+        val updatedAllowedStr: String
+
+        if (allMemberIds.isNotEmpty() && newSet.containsAll(allMemberIds)) {
+            updatedAudienceType = "FAMILY"
+            updatedAllowedStr = "all"
+        } else {
+            updatedAudienceType = "GROUP"
+            updatedAllowedStr = newSet.joinToString(",")
+        }
+
+        val updatedMovie = movie.copy(
+            targetAudienceType = updatedAudienceType,
+            allowedMemberIds = updatedAllowedStr,
+            familyVotes = movie.familyVotes + 1
+        )
+
+        updateMovie(updatedMovie)
+
+        try {
+            firestore?.collection("movie_notifications")?.document(movieId)?.update(
+                "interestedMemberIds", com.google.firebase.firestore.FieldValue.arrayUnion(memberId)
+            )
+        } catch (_: Exception) {}
     }
 
     suspend fun updateMovie(movie: Movie) = withContext(Dispatchers.IO) {
@@ -238,7 +348,8 @@ class MovieRepository(
                     "reviewsJson" to movie.reviewsJson,
                     "rating" to movie.rating,
                     "targetAudienceType" to movie.targetAudienceType,
-                    "allowedMemberIds" to movie.allowedMemberIds
+                    "allowedMemberIds" to movie.allowedMemberIds,
+                    "isPrivate" to movie.isPrivate
                 )
             )
         } catch (e: Exception) {
@@ -250,6 +361,7 @@ class MovieRepository(
         movieDao.deleteMovie(movie)
         try {
             firestore?.collection("movies")?.document(movie.id)?.delete()
+            firestore?.collection("movie_notifications")?.document(movie.id)?.delete()
         } catch (e: Exception) {
             // Ignore
         }
