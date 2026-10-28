@@ -6,6 +6,8 @@ plugins {
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.secrets)
   alias(libs.plugins.google.services)
+  id("com.android.application")
+  id("com.google.gms.google-services")
 }
 
 android {
@@ -110,6 +112,7 @@ dependencies {
   implementation(libs.firebase.ai)
   // Uncomment to use Firestore:
   implementation(libs.firebase.firestore)
+  implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
 
   // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
   // Sign-In via Credential Manager:
