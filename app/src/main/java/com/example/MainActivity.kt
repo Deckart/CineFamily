@@ -14,25 +14,31 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.outlined.AddCircleOutline
 import androidx.compose.material.icons.outlined.Casino
+import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Alignment
+import com.example.data.local.FamilyMember
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -41,7 +47,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,7 +54,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -60,7 +64,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.example.data.local.AppDatabase
-import com.example.data.local.FamilyMember
 import com.example.data.local.SessionManager
 import com.example.data.remote.UpdateDownloader
 import com.example.data.repository.MovieRepository
@@ -71,6 +74,7 @@ import com.example.ui.components.UpdateNoticeBanner
 import com.example.ui.screens.AddMovieScreen
 import com.example.ui.screens.FamilyScreen
 import com.example.ui.screens.LoginScreen
+import com.example.ui.screens.MovieCalendarScreen
 import com.example.ui.screens.MovieListScreen
 import com.example.ui.screens.RandomSelectorScreen
 import com.example.ui.theme.CinemaDarkBackground
@@ -147,6 +151,10 @@ fun MainAppScreen(viewModel: MovieViewModel) {
     val userFeedback by viewModel.userFeedback.collectAsStateWithLifecycle()
     val originalAdminSession by viewModel.originalAdminSession.collectAsStateWithLifecycle()
 
+    val movieNotifications by viewModel.movieNotifications.collectAsStateWithLifecycle()
+    val movieNights by viewModel.movieNights.collectAsStateWithLifecycle()
+    val cloudSyncStatus by viewModel.cloudSyncStatus.collectAsStateWithLifecycle()
+
     val appUpdateInfo by viewModel.appUpdateInfo.collectAsStateWithLifecycle()
     val downloadState by viewModel.downloadState.collectAsStateWithLifecycle()
     val isUpdateDialogDismissed by viewModel.isUpdateDialogDismissed.collectAsStateWithLifecycle()
@@ -171,29 +179,40 @@ fun MainAppScreen(viewModel: MovieViewModel) {
         modifier = Modifier.fillMaxSize(),
         containerColor = CinemaDarkBackground,
         topBar = {
-            Column {
-                ActiveMemberSelectorBar(
-                    activeMember = activeMember,
-                    allMembers = allMembers,
-                    pendingMemberForAuth = pendingAuthMember,
-                    pinAuthError = pinAuthError,
-                    onRequestSelectMember = { viewModel.requestSelectMember(it) },
-                    onSubmitPinAuth = { viewModel.submitPinAuth(it) },
-                    onCancelPinAuth = { viewModel.cancelPinAuth() }
-                )
-                if (originalAdminSession != null && activeMember != null) {
-                    ImpersonationStickyBanner(
-                        admin = originalAdminSession!!,
-                        actingAs = activeMember!!,
-                        onExit = { viewModel.exitImpersonation() }
+            Surface(
+                color = CinemaDarkBackground,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                ) {
+                    ActiveMemberSelectorBar(
+                        activeMember = activeMember,
+                        allMembers = allMembers,
+                        pendingMemberForAuth = pendingAuthMember,
+                        pinAuthError = pinAuthError,
+                        notifications = movieNotifications,
+                        onRequestSelectMember = { viewModel.requestSelectMember(it) },
+                        onSubmitPinAuth = { viewModel.submitPinAuth(it) },
+                        onCancelPinAuth = { viewModel.cancelPinAuth() },
+                        onJoinMovie = { viewModel.joinMovieFromNotification(it) }
                     )
-                }
-                if (isUpdateAvailable && isUpdateDialogDismissed && appUpdateInfo != null) {
-                    UpdateNoticeBanner(
-                        versionName = appUpdateInfo!!.latestVersionName,
-                        onOpenUpdate = { viewModel.showUpdateDialog() },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                    )
+                    if (originalAdminSession != null && activeMember != null) {
+                        ImpersonationStickyBanner(
+                            admin = originalAdminSession!!,
+                            actingAs = activeMember!!,
+                            onExit = { viewModel.exitImpersonation() }
+                        )
+                    }
+                    if (isUpdateAvailable && isUpdateDialogDismissed && appUpdateInfo != null) {
+                        UpdateNoticeBanner(
+                            versionName = appUpdateInfo!!.latestVersionName,
+                            onOpenUpdate = { viewModel.showUpdateDialog() },
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             }
         },
@@ -248,13 +267,41 @@ fun MainAppScreen(viewModel: MovieViewModel) {
                     modifier = Modifier.testTag("nav_tab_roulette")
                 )
 
+                val upcomingNightsCount = movieNights.count { it.isUpcoming }
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
                     icon = {
-                        Icon(imageVector = if (selectedTab == 2) Icons.Default.AddCircle else Icons.Outlined.AddCircleOutline, contentDescription = "Ajouter")
+                        BadgedBox(
+                            badge = {
+                                if (upcomingNightsCount > 0) {
+                                    Badge(containerColor = CinemaGold, contentColor = Color.Black) {
+                                        Text("$upcomingNightsCount", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(imageVector = if (selectedTab == 2) Icons.Default.Event else Icons.Outlined.Event, contentDescription = "Soirées")
+                        }
                     },
-                    label = { Text("Ajouter", fontSize = 11.sp, fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) },
+                    label = { Text("Soirées", fontSize = 11.sp, fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.Black,
+                        selectedTextColor = CinemaGold,
+                        indicatorColor = CinemaGold,
+                        unselectedIconColor = CinemaTextSecondary,
+                        unselectedTextColor = CinemaTextSecondary
+                    ),
+                    modifier = Modifier.testTag("nav_tab_calendar")
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    icon = {
+                        Icon(imageVector = if (selectedTab == 3) Icons.Default.AddCircle else Icons.Outlined.AddCircleOutline, contentDescription = "Ajouter")
+                    },
+                    label = { Text("Ajouter", fontSize = 11.sp, fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = Color.Black,
                         selectedTextColor = CinemaGold,
@@ -266,20 +313,20 @@ fun MainAppScreen(viewModel: MovieViewModel) {
                 )
 
                 NavigationBarItem(
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 },
                     icon = {
                         if (isAdmin) {
-                            Icon(imageVector = if (selectedTab == 3) Icons.Default.Group else Icons.Outlined.Group, contentDescription = "Admin")
+                            Icon(imageVector = if (selectedTab == 4) Icons.Default.Group else Icons.Outlined.Group, contentDescription = "Admin")
                         } else {
-                            Icon(imageVector = if (selectedTab == 3) Icons.Default.Person else Icons.Outlined.Person, contentDescription = "Profil")
+                            Icon(imageVector = if (selectedTab == 4) Icons.Default.Person else Icons.Outlined.Person, contentDescription = "Profil")
                         }
                     },
                     label = {
                         Text(
                             text = if (isAdmin) "Admin" else "Profil",
                             fontSize = 11.sp,
-                            fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (selectedTab == 4) FontWeight.Bold else FontWeight.Normal
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
@@ -355,7 +402,33 @@ fun MainAppScreen(viewModel: MovieViewModel) {
                     onMarkWatched = { viewModel.toggleWatched(it) }
                 )
 
-                2 -> AddMovieScreen(
+                2 -> MovieCalendarScreen(
+                    movieNights = movieNights,
+                    allMovies = allMovies,
+                    allMembers = allMembers,
+                    activeMember = activeMember,
+                    onScheduleNight = { movieId, movieTitle, moviePosterUrl, movieDuration, dateMillis, timeString, theme, snacks, invitedIds ->
+                        viewModel.scheduleMovieNight(
+                            movieId = movieId,
+                            movieTitle = movieTitle,
+                            moviePosterUrl = moviePosterUrl,
+                            movieDuration = movieDuration,
+                            dateMillis = dateMillis,
+                            timeString = timeString,
+                            themeOrNotes = theme,
+                            snacks = snacks,
+                            invitedMemberIds = invitedIds
+                        )
+                    },
+                    onRsvp = { nightId, attending ->
+                        viewModel.rsvpMovieNight(nightId, attending)
+                    },
+                    onDeleteNight = { nightId ->
+                        viewModel.deleteMovieNight(nightId)
+                    }
+                )
+
+                3 -> AddMovieScreen(
                     members = allMembers,
                     activeMember = activeMember,
                     onlineQuery = onlineQuery,
@@ -365,23 +438,7 @@ fun MainAppScreen(viewModel: MovieViewModel) {
                     onQueryChange = { viewModel.onOnlineQueryChanged(it) },
                     onSelectOnlineMovie = { viewModel.selectOnlineMovie(it) },
                     onClearSelectedOnlineMovie = { viewModel.clearSelectedOnlineMovie() },
-                    onAddMovie = { title,
-                        originalTitle,
-                        posterUrl,
-                        year,
-                        duration,
-                        genres,
-                        synopsis,
-                        director,
-                        rating,
-                        contentRating,
-                        addedBy,
-                        targetAudience,
-                        allowedMembers,
-                        streaming,
-                        notes,
-                        isPrivate,
-                        notifyFamily ->
+                    onAddMovie = { title, originalTitle, posterUrl, year, duration, genres, synopsis, director, rating, contentRating, addedBy, targetAudience, allowedMembers, streaming, notes, isPrivate, notifyFamily ->
                         viewModel.addMovieToWishlist(
                             title = title,
                             originalTitle = originalTitle,
@@ -405,7 +462,7 @@ fun MainAppScreen(viewModel: MovieViewModel) {
                     }
                 )
 
-                3 -> FamilyScreen(
+                4 -> FamilyScreen(
                     members = allMembers,
                     movies = allMovies,
                     activeMember = activeMember,
@@ -415,6 +472,8 @@ fun MainAppScreen(viewModel: MovieViewModel) {
                     currentVersionName = viewModel.currentVersionName,
                     downloadState = downloadState,
                     recoverableMembers = recoverableMembers,
+                    cloudSyncStatus = cloudSyncStatus,
+                    onForceSync = { viewModel.forceCloudSync() },
                     onRequestSelectMember = { viewModel.requestSelectMember(it) },
                     onAddNewMember = { name, emoji, color, role, pin, genres ->
                         viewModel.addNewMember(name, emoji, color, role, pin, genres)
@@ -442,6 +501,7 @@ fun MainAppScreen(viewModel: MovieViewModel) {
                 )
             }
 
+            // Movie Detail Modal with Ratings & Reviews
             detailMovie?.let { movie ->
                 MovieDetailDialog(
                     movie = movie,
@@ -459,6 +519,7 @@ fun MainAppScreen(viewModel: MovieViewModel) {
                 )
             }
 
+            // In-App Update Modal Dialog
             if (isUpdateAvailable && !isUpdateDialogDismissed && appUpdateInfo != null) {
                 UpdateDialog(
                     updateInfo = appUpdateInfo!!,

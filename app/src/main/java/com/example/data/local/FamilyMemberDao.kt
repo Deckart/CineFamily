@@ -26,4 +26,7 @@ interface FamilyMemberDao {
 
     @Delete
     suspend fun deleteMember(member: FamilyMember)
+
+    @Query("DELETE FROM family_members WHERE id = :id")
+    suspend fun deleteMemberById(id: String)
 }

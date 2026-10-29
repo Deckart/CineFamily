@@ -109,6 +109,8 @@ fun FamilyScreen(
     onStartDownloadUpdate: (url: String, targetVersionCode: Int) -> Unit = { _, _ -> },
     onInstallDownloadedApk: (File) -> Unit = {},
     onPublishAppUpdate: (versionCode: Int, versionName: String, releaseNotes: String, apkUrl: String, isMandatory: Boolean) -> Unit = { _, _, _, _, _ -> },
+    cloudSyncStatus: String = "Connecté au Cloud",
+    onForceSync: () -> Unit = {},
     onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -125,6 +127,8 @@ fun FamilyScreen(
             currentVersionName = currentVersionName,
             downloadState = downloadState,
             recoverableMembers = recoverableMembers,
+            cloudSyncStatus = cloudSyncStatus,
+            onForceSync = onForceSync,
             onRequestSelectMember = onRequestSelectMember,
             onAddNewMember = onAddNewMember,
             onUpdateMemberByAdmin = onUpdateMemberByAdmin,
@@ -171,6 +175,8 @@ private fun AdminFamilyView(
     currentVersionName: String = "1.0",
     downloadState: DownloadState = DownloadState.Idle,
     recoverableMembers: List<DeletedMemberInfo> = emptyList(),
+    cloudSyncStatus: String = "Connecté au Cloud",
+    onForceSync: () -> Unit = {},
     onRequestSelectMember: (FamilyMember) -> Unit,
     onAddNewMember: (name: String, emoji: String, colorHex: Long, role: String, pinCode: String, genres: String) -> Unit,
     onUpdateMemberByAdmin: (memberId: String, name: String, role: String, pinCode: String, genres: String, emoji: String, colorHex: Long) -> Unit,
@@ -540,6 +546,74 @@ private fun AdminFamilyView(
                         }
                     }
                 }
+            }
+        }
+
+        // Cloud Sync Status Card
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = CinemaDarkSurface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, CinemaGold.copy(alpha = 0.5f)),
+            modifier = Modifier.fillMaxWidth().testTag("admin_cloud_sync_card")
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = CinemaGold.copy(alpha = 0.2f),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("☁️", fontSize = 18.sp)
+                            }
+                        }
+                        Column {
+                            Text(
+                                text = "Synchronisation Cloud",
+                                color = CinemaTextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = cloudSyncStatus,
+                                color = if (cloudSyncStatus.contains("Erreur") || cloudSyncStatus.contains("Hors ligne")) VelvetRuby else CinemaGold,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = onForceSync,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = CinemaDarkSurfaceVariant,
+                            contentColor = CinemaGold
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CinemaGold.copy(alpha = 0.6f)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.testTag("btn_force_cloud_sync")
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(15.dp), tint = CinemaGold)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Synchroniser", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Vos listes de films, comptes de la famille et soirées planifiées sont partagés instantanément entre tous les téléphones connectés.",
+                    color = CinemaTextSecondary,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp
+                )
             }
         }
 

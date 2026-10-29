@@ -20,5 +20,9 @@ service cloud.firestore {
     match /movie_notifications/{notificationId} {
       allow read, write: if true;
     }
+
+    match /movie_nights/{nightId} {
+      allow read, write: if true;
+    }
   }
 }

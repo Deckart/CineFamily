@@ -34,6 +34,12 @@ interface MovieDao {
     @Delete
     suspend fun deleteMovie(movie: Movie)
 
+    @Query("SELECT * FROM movies ORDER BY addedTimestamp DESC")
+    suspend fun getAllMoviesList(): List<Movie>
+
+    @Query("DELETE FROM movies WHERE id = :id")
+    suspend fun deleteMovieById(id: String)
+
     @Query("UPDATE movies SET isWatched = :isWatched WHERE id = :id")
     suspend fun setWatched(id: String, isWatched: Boolean)
 

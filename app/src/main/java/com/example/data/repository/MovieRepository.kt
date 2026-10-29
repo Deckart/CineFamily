@@ -7,6 +7,7 @@ import com.example.data.local.FamilyMemberDao
 import com.example.data.local.Movie
 import com.example.data.local.MovieDao
 import com.example.data.model.DeletedMemberInfo
+import com.example.data.model.MovieNight
 import com.example.data.model.MovieNotification
 import com.example.data.model.MovieSearchResult
 import com.example.data.model.Review
@@ -46,6 +47,10 @@ class MovieRepository(
     val deletedMembers: kotlinx.coroutines.flow.StateFlow<List<DeletedMemberInfo>> = _deletedMembers
     private val _movieNotifications = kotlinx.coroutines.flow.MutableStateFlow<List<MovieNotification>>(emptyList())
     val movieNotifications: kotlinx.coroutines.flow.StateFlow<List<MovieNotification>> = _movieNotifications
+    private val _movieNights = kotlinx.coroutines.flow.MutableStateFlow<List<MovieNight>>(emptyList())
+    val movieNights: kotlinx.coroutines.flow.StateFlow<List<MovieNight>> = _movieNights
+    private val _cloudSyncStatus = kotlinx.coroutines.flow.MutableStateFlow<String>("Connecté au Cloud")
+    val cloudSyncStatus: kotlinx.coroutines.flow.StateFlow<String> = _cloudSyncStatus
     private var lastNotificationCheckTime = System.currentTimeMillis() - 30_000L
     private val _appUpdateInfo = kotlinx.coroutines.flow.MutableStateFlow<com.example.data.model.AppUpdateInfo?>(null)
 
@@ -53,13 +58,33 @@ class MovieRepository(
     private val reviewListType = Types.newParameterizedType(List::class.java, Review::class.java)
     private val reviewsAdapter = moshi.adapter<List<Review>>(reviewListType)
 
-    // Firestore instance with named database ID
+    // Robust Firestore instance initialization
     private val firestore: FirebaseFirestore? by lazy {
         try {
-            val dbId = context.getString(R.string.firestore_database_id)
-            FirebaseFirestore.getInstance(FirebaseApp.getInstance(), dbId)
+            val app = if (FirebaseApp.getApps(context).isEmpty()) {
+                FirebaseApp.initializeApp(context) ?: FirebaseApp.getInstance()
+            } else {
+                FirebaseApp.getInstance()
+            }
+            val dbId = try {
+                context.getString(R.string.firestore_database_id)
+            } catch (_: Exception) {
+                ""
+            }
+            if (dbId.isNotBlank()) {
+                FirebaseFirestore.getInstance(app, dbId)
+            } else {
+                FirebaseFirestore.getInstance(app)
+            }
         } catch (e: Exception) {
-            null
+            android.util.Log.e("MovieRepository", "Error initializing named Firestore database, trying default instance", e)
+            try {
+                FirebaseFirestore.getInstance()
+            } catch (e2: Exception) {
+                android.util.Log.e("MovieRepository", "Could not initialize Firestore", e2)
+                _cloudSyncStatus.value = "Hors ligne"
+                null
+            }
         }
     }
 
@@ -68,43 +93,102 @@ class MovieRepository(
     }
 
     private fun startFirestoreSync() {
-        val db = firestore ?: return
+        val db = firestore
+        if (db == null) {
+            _cloudSyncStatus.value = "Mode hors ligne (local)"
+            return
+        }
 
+        _cloudSyncStatus.value = "Connecté au Cloud CinéFamille"
+
+        // Sync Movies collection bi-directionally
         db.collection("movies").addSnapshotListener { snapshot, error ->
-            if (error != null || snapshot == null) return@addSnapshotListener
+            if (error != null) {
+                _cloudSyncStatus.value = "Erreur synchro films"
+                return@addSnapshotListener
+            }
+            if (snapshot == null) return@addSnapshotListener
+
             externalScope.launch {
-                for (doc in snapshot.documents) {
-                    val data = doc.data ?: continue
-                    val movie = Movie(
-                        id = doc.id,
-                        title = data["title"] as? String ?: "",
-                        originalTitle = data["originalTitle"] as? String ?: "",
-                        posterUrl = data["posterUrl"] as? String ?: "",
-                        year = (data["year"] as? Number)?.toInt() ?: 2024,
-                        durationMinutes = (data["durationMinutes"] as? Number)?.toInt() ?: 100,
-                        genres = data["genres"] as? String ?: "Famille",
-                        synopsis = data["synopsis"] as? String ?: "",
-                        director = data["director"] as? String ?: "",
-                        rating = (data["rating"] as? Number)?.toFloat() ?: 4.5f,
-                        contentRating = data["contentRating"] as? String ?: "Tous publics",
-                        addedByMemberId = data["addedByMemberId"] as? String ?: "",
-                        addedByMemberName = data["addedByMemberName"] as? String ?: "",
-                        addedByMemberEmoji = data["addedByMemberEmoji"] as? String ?: "🎬",
-                        addedTimestamp = (data["addedTimestamp"] as? Number)?.toLong() ?: System.currentTimeMillis(),
-                        isWatched = data["isWatched"] as? Boolean ?: false,
-                        userNotes = data["userNotes"] as? String ?: "",
-                        familyVotes = (data["familyVotes"] as? Number)?.toInt() ?: 1,
-                        targetAudienceType = data["targetAudienceType"] as? String ?: "FAMILY",
-                        allowedMemberIds = data["allowedMemberIds"] as? String ?: "all",
-                        streamingServices = data["streamingServices"] as? String ?: "Netflix",
-                        reviewsJson = data["reviewsJson"] as? String ?: "",
-                        isPrivate = data["isPrivate"] as? Boolean ?: false
-                    )
-                    movieDao.insertMovie(movie)
+                try {
+                    val remoteIds = snapshot.documents.map { it.id }.toSet()
+                    if (remoteIds.isNotEmpty()) {
+                        for (doc in snapshot.documents) {
+                            val data = doc.data ?: continue
+                            val movie = Movie(
+                                id = doc.id,
+                                title = data["title"] as? String ?: "",
+                                originalTitle = data["originalTitle"] as? String ?: "",
+                                posterUrl = data["posterUrl"] as? String ?: "",
+                                year = (data["year"] as? Number)?.toInt() ?: 2024,
+                                durationMinutes = (data["durationMinutes"] as? Number)?.toInt() ?: 100,
+                                genres = data["genres"] as? String ?: "Famille",
+                                synopsis = data["synopsis"] as? String ?: "",
+                                director = data["director"] as? String ?: "",
+                                rating = (data["rating"] as? Number)?.toFloat() ?: 4.5f,
+                                contentRating = data["contentRating"] as? String ?: "Tous publics",
+                                addedByMemberId = data["addedByMemberId"] as? String ?: "",
+                                addedByMemberName = data["addedByMemberName"] as? String ?: "",
+                                addedByMemberEmoji = data["addedByMemberEmoji"] as? String ?: "🎬",
+                                addedTimestamp = (data["addedTimestamp"] as? Number)?.toLong() ?: System.currentTimeMillis(),
+                                isWatched = data["isWatched"] as? Boolean ?: false,
+                                userNotes = data["userNotes"] as? String ?: "",
+                                familyVotes = (data["familyVotes"] as? Number)?.toInt() ?: 1,
+                                targetAudienceType = data["targetAudienceType"] as? String ?: "FAMILY",
+                                allowedMemberIds = data["allowedMemberIds"] as? String ?: "all",
+                                streamingServices = data["streamingServices"] as? String ?: "Netflix",
+                                reviewsJson = data["reviewsJson"] as? String ?: "",
+                                isPrivate = data["isPrivate"] as? Boolean ?: false
+                            )
+                            movieDao.insertMovie(movie)
+                        }
+
+                        // Remove local movies deleted on other devices
+                        val localMovies = movieDao.getAllMoviesList()
+                        for (local in localMovies) {
+                            if (!remoteIds.contains(local.id)) {
+                                movieDao.deleteMovieById(local.id)
+                            }
+                        }
+                    } else {
+                        // Cloud has 0 movies, seed initial local movies to cloud
+                        val localMovies = movieDao.getAllMoviesList()
+                        for (m in localMovies) {
+                            val map = hashMapOf(
+                                "title" to m.title,
+                                "originalTitle" to m.originalTitle,
+                                "posterUrl" to m.posterUrl,
+                                "year" to m.year,
+                                "durationMinutes" to m.durationMinutes,
+                                "genres" to m.genres,
+                                "synopsis" to m.synopsis,
+                                "director" to m.director,
+                                "rating" to m.rating,
+                                "contentRating" to m.contentRating,
+                                "addedByMemberId" to m.addedByMemberId,
+                                "addedByMemberName" to m.addedByMemberName,
+                                "addedByMemberEmoji" to m.addedByMemberEmoji,
+                                "addedTimestamp" to m.addedTimestamp,
+                                "isWatched" to m.isWatched,
+                                "userNotes" to m.userNotes,
+                                "familyVotes" to m.familyVotes,
+                                "targetAudienceType" to m.targetAudienceType,
+                                "allowedMemberIds" to m.allowedMemberIds,
+                                "streamingServices" to m.streamingServices,
+                                "reviewsJson" to m.reviewsJson,
+                                "isPrivate" to m.isPrivate
+                            )
+                            db.collection("movies").document(m.id).set(map, SetOptions.merge())
+                        }
+                    }
+                    _cloudSyncStatus.value = "Synchronisé avec le Cloud"
+                } catch (e: Exception) {
+                    android.util.Log.e("MovieRepository", "Error syncing movies", e)
                 }
             }
         }
 
+        // Sync Movie Notifications
         db.collection("movie_notifications")
             .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .limit(50)
@@ -140,27 +224,96 @@ class MovieRepository(
                 }
             }
 
+        // Sync Family Members bi-directionally
         db.collection("family_members").addSnapshotListener { snapshot, error ->
-            if (error != null || snapshot == null) return@addSnapshotListener
+            if (error != null) {
+                _cloudSyncStatus.value = "Erreur synchro membres"
+                return@addSnapshotListener
+            }
+            if (snapshot == null) return@addSnapshotListener
+
             externalScope.launch {
-                for (doc in snapshot.documents) {
-                    val data = doc.data ?: continue
-                    val member = FamilyMember(
-                        id = doc.id,
-                        name = data["name"] as? String ?: "",
-                        avatarEmoji = data["avatarEmoji"] as? String ?: "🎬",
-                        colorHex = (data["colorHex"] as? Number)?.toLong() ?: 0xFF448AFF,
-                        role = data["role"] as? String ?: "Famille",
-                        pinCode = data["pinCode"] as? String ?: "1234",
-                        preferredGenres = data["preferredGenres"] as? String ?: "Animation, Comédie",
-                        isAdmin = (data["isAdmin"] as? Boolean) ?: (doc.id == "steph"),
-                        createdAt = (data["createdAt"] as? Number)?.toLong() ?: System.currentTimeMillis()
-                    )
-                    memberDao.insertMember(member)
+                try {
+                    val remoteIds = snapshot.documents.map { it.id }.toSet()
+                    if (remoteIds.isNotEmpty()) {
+                        for (doc in snapshot.documents) {
+                            val data = doc.data ?: continue
+                            val member = FamilyMember(
+                                id = doc.id,
+                                name = data["name"] as? String ?: "",
+                                avatarEmoji = data["avatarEmoji"] as? String ?: "🎬",
+                                colorHex = (data["colorHex"] as? Number)?.toLong() ?: 0xFF448AFF,
+                                role = data["role"] as? String ?: "Famille",
+                                pinCode = data["pinCode"] as? String ?: "1234",
+                                preferredGenres = data["preferredGenres"] as? String ?: "Animation, Comédie",
+                                isAdmin = (data["isAdmin"] as? Boolean) ?: (doc.id == "steph"),
+                                createdAt = (data["createdAt"] as? Number)?.toLong() ?: System.currentTimeMillis()
+                            )
+                            memberDao.insertMember(member)
+                        }
+
+                        // Remove local members deleted on other devices
+                        val localMembers = memberDao.getAllMembersList()
+                        for (local in localMembers) {
+                            if (!remoteIds.contains(local.id)) {
+                                memberDao.deleteMemberById(local.id)
+                            }
+                        }
+                    } else {
+                        // Cloud has 0 members, seed local members to cloud
+                        val localMembers = memberDao.getAllMembersList()
+                        for (mem in localMembers) {
+                            val map = hashMapOf(
+                                "name" to mem.name,
+                                "avatarEmoji" to mem.avatarEmoji,
+                                "colorHex" to mem.colorHex,
+                                "role" to mem.role,
+                                "pinCode" to mem.pinCode,
+                                "preferredGenres" to mem.preferredGenres,
+                                "isAdmin" to mem.isAdmin,
+                                "createdAt" to mem.createdAt
+                            )
+                            db.collection("family_members").document(mem.id).set(map, SetOptions.merge())
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("MovieRepository", "Error syncing members", e)
                 }
             }
         }
 
+        // Sync Movie Nights (Calendrier Partagé)
+        db.collection("movie_nights")
+            .orderBy("dateTimeMillis", com.google.firebase.firestore.Query.Direction.ASCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) return@addSnapshotListener
+                val nights = mutableListOf<MovieNight>()
+                for (doc in snapshot.documents) {
+                    val data = doc.data ?: continue
+                    val night = MovieNight(
+                        id = doc.id,
+                        movieId = data["movieId"] as? String ?: "",
+                        movieTitle = data["movieTitle"] as? String ?: "",
+                        moviePosterUrl = data["moviePosterUrl"] as? String ?: "",
+                        movieDurationMinutes = (data["movieDurationMinutes"] as? Number)?.toInt() ?: 100,
+                        organizerMemberId = data["organizerMemberId"] as? String ?: "",
+                        organizerMemberName = data["organizerMemberName"] as? String ?: "",
+                        organizerMemberEmoji = data["organizerMemberEmoji"] as? String ?: "🎬",
+                        dateTimeMillis = (data["dateTimeMillis"] as? Number)?.toLong() ?: System.currentTimeMillis(),
+                        timeString = data["timeString"] as? String ?: "20h30",
+                        themeOrNotes = data["themeOrNotes"] as? String ?: "",
+                        snacksDescription = data["snacksDescription"] as? String ?: "",
+                        invitedMemberIds = (data["invitedMemberIds"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+                        attendingMemberIds = (data["attendingMemberIds"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+                        declinedMemberIds = (data["declinedMemberIds"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+                        createdAt = (data["createdAt"] as? Number)?.toLong() ?: System.currentTimeMillis()
+                    )
+                    nights.add(night)
+                }
+                _movieNights.value = nights
+            }
+
+        // Sync Deleted Family Members for 7-day recovery
         db.collection("deleted_family_members").addSnapshotListener { snapshot, error ->
             if (error != null || snapshot == null) return@addSnapshotListener
             val list = mutableListOf<DeletedMemberInfo>()
@@ -204,6 +357,7 @@ class MovieRepository(
             }
         }
 
+        // Sync App Config & Update Info
         db.collection("app_config").document("version").addSnapshotListener { snapshot, error ->
             if (error != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
             val data = snapshot.data ?: return@addSnapshotListener
@@ -686,6 +840,133 @@ class MovieRepository(
                     streamingServices = listOf("Netflix")
                 )
             )
+        }
+    }
+
+    suspend fun scheduleMovieNight(night: MovieNight) = withContext(Dispatchers.IO) {
+        try {
+            val docId = if (night.id.isNotBlank()) night.id else "night_${System.currentTimeMillis()}"
+            val map = hashMapOf(
+                "movieId" to night.movieId,
+                "movieTitle" to night.movieTitle,
+                "moviePosterUrl" to night.moviePosterUrl,
+                "movieDurationMinutes" to night.movieDurationMinutes,
+                "organizerMemberId" to night.organizerMemberId,
+                "organizerMemberName" to night.organizerMemberName,
+                "organizerMemberEmoji" to night.organizerMemberEmoji,
+                "dateTimeMillis" to night.dateTimeMillis,
+                "timeString" to night.timeString,
+                "themeOrNotes" to night.themeOrNotes,
+                "snacksDescription" to night.snacksDescription,
+                "invitedMemberIds" to night.invitedMemberIds,
+                "attendingMemberIds" to night.attendingMemberIds,
+                "declinedMemberIds" to night.declinedMemberIds,
+                "createdAt" to night.createdAt
+            )
+            firestore?.collection("movie_nights")?.document(docId)?.set(map, SetOptions.merge())
+
+            // Also post notification to family
+            val notifMap = hashMapOf(
+                "movieId" to night.movieId,
+                "movieTitle" to "Soirée Ciné : ${night.movieTitle}",
+                "moviePosterUrl" to night.moviePosterUrl,
+                "addedByMemberId" to night.organizerMemberId,
+                "addedByMemberName" to night.organizerMemberName,
+                "addedByMemberEmoji" to night.organizerMemberEmoji,
+                "targetAudienceType" to "FAMILY",
+                "timestamp" to System.currentTimeMillis(),
+                "interestedMemberIds" to night.attendingMemberIds
+            )
+            firestore?.collection("movie_notifications")?.document("notif_night_$docId")?.set(notifMap, SetOptions.merge())
+        } catch (e: Exception) {
+            android.util.Log.e("MovieRepository", "Error scheduling movie night", e)
+        }
+    }
+
+    suspend fun rsvpMovieNight(nightId: String, memberId: String, attending: Boolean) = withContext(Dispatchers.IO) {
+        try {
+            val docRef = firestore?.collection("movie_nights")?.document(nightId) ?: return@withContext
+            if (attending) {
+                docRef.update(
+                    mapOf(
+                        "attendingMemberIds" to com.google.firebase.firestore.FieldValue.arrayUnion(memberId),
+                        "declinedMemberIds" to com.google.firebase.firestore.FieldValue.arrayRemove(memberId)
+                    )
+                )
+            } else {
+                docRef.update(
+                    mapOf(
+                        "declinedMemberIds" to com.google.firebase.firestore.FieldValue.arrayUnion(memberId),
+                        "attendingMemberIds" to com.google.firebase.firestore.FieldValue.arrayRemove(memberId)
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MovieRepository", "Error updating RSVP", e)
+        }
+    }
+
+    suspend fun deleteMovieNight(nightId: String) = withContext(Dispatchers.IO) {
+        try {
+            firestore?.collection("movie_nights")?.document(nightId)?.delete()
+        } catch (e: Exception) {
+            android.util.Log.e("MovieRepository", "Error deleting movie night", e)
+        }
+    }
+
+    suspend fun syncCloudNow(): String = withContext(Dispatchers.IO) {
+        val db = firestore ?: return@withContext "Cloud non initialisé (mode local)"
+        try {
+            _cloudSyncStatus.value = "Synchronisation manuelle..."
+            val members = memberDao.getAllMembersList()
+            for (m in members) {
+                val map = hashMapOf(
+                    "name" to m.name,
+                    "avatarEmoji" to m.avatarEmoji,
+                    "colorHex" to m.colorHex,
+                    "role" to m.role,
+                    "pinCode" to m.pinCode,
+                    "preferredGenres" to m.preferredGenres,
+                    "isAdmin" to m.isAdmin,
+                    "createdAt" to m.createdAt
+                )
+                db.collection("family_members").document(m.id).set(map, SetOptions.merge())
+            }
+
+            val movies = movieDao.getAllMoviesList()
+            for (m in movies) {
+                val map = hashMapOf(
+                    "title" to m.title,
+                    "originalTitle" to m.originalTitle,
+                    "posterUrl" to m.posterUrl,
+                    "year" to m.year,
+                    "durationMinutes" to m.durationMinutes,
+                    "genres" to m.genres,
+                    "synopsis" to m.synopsis,
+                    "director" to m.director,
+                    "rating" to m.rating,
+                    "contentRating" to m.contentRating,
+                    "addedByMemberId" to m.addedByMemberId,
+                    "addedByMemberName" to m.addedByMemberName,
+                    "addedByMemberEmoji" to m.addedByMemberEmoji,
+                    "addedTimestamp" to m.addedTimestamp,
+                    "isWatched" to m.isWatched,
+                    "userNotes" to m.userNotes,
+                    "familyVotes" to m.familyVotes,
+                    "targetAudienceType" to m.targetAudienceType,
+                    "allowedMemberIds" to m.allowedMemberIds,
+                    "streamingServices" to m.streamingServices,
+                    "reviewsJson" to m.reviewsJson,
+                    "isPrivate" to m.isPrivate
+                )
+                db.collection("movies").document(m.id).set(map, SetOptions.merge())
+            }
+
+            _cloudSyncStatus.value = "Synchronisé avec le Cloud"
+            "Synchronisation réussie (${members.size} membres, ${movies.size} films synchronisés)"
+        } catch (e: Exception) {
+            _cloudSyncStatus.value = "Erreur de synchronisation"
+            "Erreur: ${e.message}"
         }
     }
 }
