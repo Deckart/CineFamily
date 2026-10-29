@@ -22,25 +22,37 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      # 1. Génération du wrapper gradlew
-      - name: Generate Gradle Wrapper
-        run: gradle wrapper
-
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # 2. Création du debug.keystore attendu par le projet
-      - name: Create debug keystore
+      # 1. Préparation du fichier d'environnement
+      - name: Prepare environment
         run: |
-          keytool -genkey -v \
-            -keystore debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          if [ ! -f .env ] && [ -f .env.example ]; then
+            cp .env.example .env
+          fi
+
+      # 2. Restauration du debug.keystore officiel (correspondant aux signatures Firebase)
+      - name: Restore debug keystore
+        run: |
+          mkdir -p ~/.android
+          if [ -f debug.keystore.base64 ]; then
+            echo "Restauration du debug.keystore depuis debug.keystore.base64..."
+            base64 -d debug.keystore.base64 > ~/.android/debug.keystore
+            cp ~/.android/debug.keystore ./debug.keystore
+          else
+            echo "Génération de secours d'un debug.keystore..."
+            keytool -genkey -v \
+              -keystore ~/.android/debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            cp ~/.android/debug.keystore ./debug.keystore
+          fi
 
       # 3. Compilation de l'APK Debug
       - name: Build APK (Debug)
