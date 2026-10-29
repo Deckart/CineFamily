@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -73,10 +75,32 @@ jobs:
       - name: Build APK (Debug)
         run: ./gradlew assembleDebug --stacktrace
 
-      # 5. Export de l'APK dans les Artifacts GitHub
+      # 5. Préparation de l'APK avec un nom clair
+      - name: Prepare APK file
+        run: |
+          mkdir -p release-apk
+          cp app/build/outputs/apk/debug/*.apk release-apk/CineFamily.apk
+
+      # 6. Export de l'APK dans les Artifacts GitHub
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: CineFamily-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: release-apk/CineFamily.apk
           retention-days: 7
+
+      # 7. Publication automatique dans les Releases GitHub
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
+        with:
+          tag_name: latest
+          name: "CinéFamille - Dernière mise à jour (APK)"
+          body: |
+            ### 📱 Installation / Mise à jour Android
+            Téléchargez le fichier **CineFamily.apk** ci-dessous directement sur votre smartphone pour installer ou mettre à jour CinéFamille.
+          draft: false
+          prerelease: false
+          files: release-apk/CineFamily.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
