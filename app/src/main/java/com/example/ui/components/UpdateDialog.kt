@@ -13,13 +13,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -64,6 +68,7 @@ fun UpdateDialog(
     onRequestPermission: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     Dialog(
         onDismissRequest = {
             if (!updateInfo.isMandatory && downloadState !is DownloadState.Downloading) {
@@ -387,6 +392,28 @@ fun UpdateDialog(
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(12.dp))
+                            if (updateInfo.apkUrl.isNotBlank() && updateInfo.apkUrl.startsWith("http", ignoreCase = true)) {
+                                Button(
+                                    onClick = {
+                                        try {
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo.apkUrl)).apply {
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            }
+                                            context.startActivity(intent)
+                                        } catch (_: Exception) {}
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = CinemaGold, contentColor = Color.Black),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("open_browser_download_btn")
+                                ) {
+                                    Icon(imageVector = Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Télécharger via le navigateur", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -403,7 +430,8 @@ fun UpdateDialog(
                                     onClick = {
                                         onStartDownload(updateInfo.apkUrl, updateInfo.latestVersionCode)
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = CinemaGold, contentColor = Color.Black),
+                                    colors = ButtonDefaults.buttonColors(containerColor = CinemaDarkSurfaceVariant, contentColor = CinemaGold),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, CinemaGold.copy(alpha = 0.5f)),
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {

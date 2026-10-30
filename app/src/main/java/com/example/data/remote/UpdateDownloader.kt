@@ -55,11 +55,20 @@ class UpdateDownloader(private val context: Context) {
 
         try {
             onProgress(DownloadState.Downloading(0, 0L, 0L))
-            val request = Request.Builder().url(url).build()
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) CineFamille/1.3")
+                .header("Accept", "application/vnd.android.package-archive,application/octet-stream,*/*")
+                .build()
             val response = client.newCall(request).execute()
 
             if (!response.isSuccessful) {
-                onProgress(DownloadState.Error("Échec du téléchargement HTTP : code ${response.code}"))
+                val errorMsg = if (response.code == 618) {
+                    "Le lien de téléchargement temporaire a expiré (erreur GitHub 618). Utilisez le lien permanent GitHub Releases ou téléchargez via le navigateur."
+                } else {
+                    "Échec du téléchargement HTTP : code ${response.code}"
+                }
+                onProgress(DownloadState.Error(errorMsg))
                 return@withContext
             }
 

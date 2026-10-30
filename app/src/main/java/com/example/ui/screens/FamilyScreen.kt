@@ -824,6 +824,13 @@ private fun AdminFamilyView(
                         modifier = Modifier.fillMaxWidth().testTag("update_apk_url_field")
                     )
 
+                    Text(
+                        text = "💡 Format permanent recommandé : https://github.com/<compte>/<repo>/releases/latest/download/CineFamily.apk\n(Évitez les liens temporaires objects.githubusercontent.com qui expirent au bout de 5 minutes avec une erreur 618).",
+                        color = CinemaGold.copy(alpha = 0.85f),
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp
+                    )
+
                     OutlinedTextField(
                         value = targetNotes,
                         onValueChange = { targetNotes = it },
