@@ -135,6 +135,8 @@ fun MainAppScreen(viewModel: MovieViewModel) {
 
     val selectedViewers by viewModel.selectedViewerIds.collectAsStateWithLifecycle()
     val randomMemberId by viewModel.randomMemberFilterId.collectAsStateWithLifecycle()
+    val randomGenre by viewModel.randomGenreFilter.collectAsStateWithLifecycle()
+    val randomDurationFilter by viewModel.randomDurationFilter.collectAsStateWithLifecycle()
     val randomMaxDuration by viewModel.randomMaxDurationFilter.collectAsStateWithLifecycle()
     val randomStreaming by viewModel.randomStreamingFilter.collectAsStateWithLifecycle()
     val isSpinning by viewModel.isSpinning.collectAsStateWithLifecycle()
@@ -173,6 +175,17 @@ fun MainAppScreen(viewModel: MovieViewModel) {
             snackbarHostState.showSnackbar(msg)
             viewModel.clearFeedback()
         }
+    }
+
+    val allGenres = remember(allMovies) {
+        val set = linkedSetOf("Animation", "Comédie", "Aventure", "Science-fiction", "Famille", "Fantastique", "Action", "Drame")
+        allMovies.forEach { movie ->
+            movie.genres.split(",", ";", "/").forEach { g ->
+                val clean = g.trim().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                if (clean.isNotBlank()) set.add(clean)
+            }
+        }
+        set.toList()
     }
 
     Scaffold(
@@ -384,6 +397,9 @@ fun MainAppScreen(viewModel: MovieViewModel) {
                     members = allMembers,
                     selectedViewerIds = selectedViewers,
                     selectedMemberId = randomMemberId,
+                    selectedGenre = randomGenre,
+                    selectedDurationFilter = randomDurationFilter,
+                    availableGenres = allGenres,
                     selectedMaxDuration = randomMaxDuration,
                     selectedStreaming = randomStreaming,
                     eligibleMovies = viewModel.getEligibleRandomMovies(),
@@ -394,6 +410,8 @@ fun MainAppScreen(viewModel: MovieViewModel) {
                     onToggleViewer = { viewModel.toggleViewer(it) },
                     onSelectAllViewers = { viewModel.selectAllViewers() },
                     onSelectMember = { viewModel.setRandomMemberFilter(it) },
+                    onSelectGenre = { viewModel.setRandomGenreFilter(it) },
+                    onSelectDurationFilter = { viewModel.setRandomDurationFilter(it) },
                     onSelectDuration = { viewModel.setRandomMaxDurationFilter(it) },
                     onSelectStreaming = { viewModel.setRandomStreamingFilter(it) },
                     onSpin = { viewModel.spinRandomSelector() },

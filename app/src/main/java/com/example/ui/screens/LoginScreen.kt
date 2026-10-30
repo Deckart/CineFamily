@@ -260,30 +260,5 @@ fun LoginScreen(
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Discrete Helper for Demo/Family
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = CinemaDarkSurfaceVariant.copy(alpha = 0.6f),
-            modifier = Modifier.padding(horizontal = 8.dp)
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = "🔑 Codes PIN initiaux :",
-                    color = CinemaGold,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "• Steph (Admin) : 0000\n• Clara : 1111\n• Antoine : 2222\n• Sophie : 3333",
-                    color = CinemaTextSecondary,
-                    fontSize = 11.sp,
-                    lineHeight = 16.sp
-                )
-            }
-        }
     }
 }

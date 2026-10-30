@@ -51,6 +51,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,12 +76,17 @@ import com.example.ui.theme.CinemaTextPrimary
 import com.example.ui.theme.CinemaTextSecondary
 import com.example.ui.theme.VelvetRuby
 
+import com.example.ui.viewmodel.RandomDurationFilter
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RandomSelectorScreen(
     members: List<FamilyMember>,
     selectedViewerIds: Set<String>,
     selectedMemberId: String?,
+    selectedGenre: String?,
+    selectedDurationFilter: RandomDurationFilter,
+    availableGenres: List<String>,
     selectedMaxDuration: Int?,
     selectedStreaming: String?,
     eligibleMovies: List<Movie>,
@@ -91,6 +97,8 @@ fun RandomSelectorScreen(
     onToggleViewer: (String) -> Unit,
     onSelectAllViewers: () -> Unit,
     onSelectMember: (String?) -> Unit,
+    onSelectGenre: (String?) -> Unit,
+    onSelectDurationFilter: (RandomDurationFilter) -> Unit,
     onSelectDuration: (Int?) -> Unit,
     onSelectStreaming: (String?) -> Unit,
     onSpin: () -> Unit,
@@ -281,7 +289,12 @@ fun RandomSelectorScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Step 2: Filtres d'ajustement (Membre qui a ajouté, Durée, Streaming)
+        // Step 2: Filtres d'ajustement (Genre, Durée, Membre, Streaming)
+        val effectiveGenres = remember(availableGenres) {
+            if (availableGenres.isNotEmpty()) availableGenres
+            else listOf("Animation", "Comédie", "Aventure", "Science-fiction", "Famille", "Fantastique", "Action", "Drame", "Horreur", "Thriller")
+        }
+
         Card(
             shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = CinemaDarkSurface),
@@ -289,8 +302,133 @@ fun RandomSelectorScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
+                // 2. Genre de film
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "2. Genre de film :",
+                        color = CinemaGold,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (selectedGenre != null) {
+                        Text(
+                            text = "Effacer",
+                            color = CinemaTextSecondary,
+                            fontSize = 11.sp,
+                            modifier = Modifier
+                                .clickable { onSelectGenre(null) }
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    item {
+                        FilterChip(
+                            selected = selectedGenre == null,
+                            onClick = { onSelectGenre(null) },
+                            label = { Text("Tous les genres", fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CinemaGold,
+                                selectedLabelColor = Color.Black,
+                                containerColor = CinemaDarkSurfaceVariant,
+                                labelColor = CinemaTextPrimary
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                borderColor = if (selectedGenre == null) CinemaGold else CinemaDarkBorder,
+                                enabled = true,
+                                selected = selectedGenre == null
+                            ),
+                            modifier = Modifier.testTag("roulette_genre_all")
+                        )
+                    }
+                    items(effectiveGenres) { genre ->
+                        val isSelected = selectedGenre.equals(genre, ignoreCase = true)
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onSelectGenre(if (isSelected) null else genre) },
+                            label = { Text(genre, fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CinemaGold,
+                                selectedLabelColor = Color.Black,
+                                containerColor = CinemaDarkSurfaceVariant,
+                                labelColor = CinemaTextPrimary
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                borderColor = if (isSelected) CinemaGold else CinemaDarkBorder,
+                                enabled = true,
+                                selected = isSelected
+                            ),
+                            modifier = Modifier.testTag("roulette_genre_$genre")
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 3. Durée du film (Moins de 2h vs + de 2h)
                 Text(
-                    text = "2. Proposé par :",
+                    text = "3. Durée du film :",
+                    color = CinemaGold,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    RandomDurationFilter.entries.forEach { filter ->
+                        val isSelected = selectedDurationFilter == filter
+                        val durationLabel = when (filter) {
+                            RandomDurationFilter.ALL -> "Toutes durées"
+                            RandomDurationFilter.UNDER_2H -> "Moins de 2h"
+                            RandomDurationFilter.OVER_2H -> "+ de 2h"
+                        }
+                        val durationIcon = when (filter) {
+                            RandomDurationFilter.ALL -> "⏱"
+                            RandomDurationFilter.UNDER_2H -> "⚡"
+                            RandomDurationFilter.OVER_2H -> "🍿"
+                        }
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onSelectDurationFilter(filter) },
+                            leadingIcon = { Text(durationIcon, fontSize = 11.sp) },
+                            label = {
+                                Text(
+                                    text = durationLabel,
+                                    fontSize = 10.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines = 1
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CinemaGold,
+                                selectedLabelColor = Color.Black,
+                                containerColor = CinemaDarkSurfaceVariant,
+                                labelColor = CinemaTextPrimary
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                borderColor = if (isSelected) CinemaGold else CinemaDarkBorder,
+                                enabled = true,
+                                selected = isSelected
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("roulette_duration_${filter.name}")
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 4. Proposé par :
+                Text(
+                    text = "4. Proposé par :",
                     color = CinemaTextSecondary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
@@ -329,9 +467,9 @@ fun RandomSelectorScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Streaming Platform filter
+                // 5. Streaming Platform filter
                 Text(
-                    text = "3. Plateforme disponible :",
+                    text = "5. Plateforme disponible :",
                     color = CinemaTextSecondary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold

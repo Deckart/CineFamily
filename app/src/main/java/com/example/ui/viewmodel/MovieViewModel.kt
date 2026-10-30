@@ -43,6 +43,12 @@ enum class WatchStatusFilter(val label: String) {
     ALL("Tous les films")
 }
 
+enum class RandomDurationFilter(val label: String) {
+    ALL("Toutes"),
+    UNDER_2H("Moins de 2h"),
+    OVER_2H("+ de 2h")
+}
+
 data class FilterState(
     val searchQuery: String = "",
     val memberId: String? = null,
@@ -234,6 +240,12 @@ class MovieViewModel(
 
     private val _randomMemberFilterId = MutableStateFlow<String?>(null)
     val randomMemberFilterId: StateFlow<String?> = _randomMemberFilterId.asStateFlow()
+
+    private val _randomGenreFilter = MutableStateFlow<String?>(null)
+    val randomGenreFilter: StateFlow<String?> = _randomGenreFilter.asStateFlow()
+
+    private val _randomDurationFilter = MutableStateFlow(RandomDurationFilter.ALL)
+    val randomDurationFilter: StateFlow<RandomDurationFilter> = _randomDurationFilter.asStateFlow()
 
     private val _randomMaxDurationFilter = MutableStateFlow<Int?>(null)
     val randomMaxDurationFilter: StateFlow<Int?> = _randomMaxDurationFilter.asStateFlow()
@@ -432,6 +444,18 @@ class MovieViewModel(
         _spinErrorMessage.value = null
     }
 
+    fun setRandomGenreFilter(genre: String?) {
+        _randomGenreFilter.value = genre
+        _winningMovie.value = null
+        _spinErrorMessage.value = null
+    }
+
+    fun setRandomDurationFilter(filter: RandomDurationFilter) {
+        _randomDurationFilter.value = filter
+        _winningMovie.value = null
+        _spinErrorMessage.value = null
+    }
+
     fun setRandomMaxDurationFilter(maxMinutes: Int?) {
         _randomMaxDurationFilter.value = maxMinutes
         _winningMovie.value = null
@@ -447,6 +471,8 @@ class MovieViewModel(
     fun getEligibleRandomMovies(): List<Movie> {
         val viewers = _selectedViewerIds.value
         val memberFilter = _randomMemberFilterId.value
+        val genreFilter = _randomGenreFilter.value
+        val durationFilter = _randomDurationFilter.value
         val maxDuration = _randomMaxDurationFilter.value
         val streaming = _randomStreamingFilter.value
         val allMemberIds = allMembers.value.map { it.id }.toSet()
@@ -462,7 +488,23 @@ class MovieViewModel(
             // Member who added it filter
             if (memberFilter != null && movie.addedByMemberId != memberFilter) return@filter false
 
-            // Duration filter
+            // Genre filter
+            if (genreFilter != null && !movie.genres.contains(genreFilter, ignoreCase = true)) {
+                return@filter false
+            }
+
+            // Duration filter (Moins de 2h vs + de 2h)
+            when (durationFilter) {
+                RandomDurationFilter.ALL -> { /* Pas de restriction */ }
+                RandomDurationFilter.UNDER_2H -> {
+                    if (movie.durationMinutes > 120) return@filter false
+                }
+                RandomDurationFilter.OVER_2H -> {
+                    if (movie.durationMinutes <= 120) return@filter false
+                }
+            }
+
+            // Fallback max duration if specified
             if (maxDuration != null && movie.durationMinutes > maxDuration) return@filter false
 
             // Streaming platform filter
