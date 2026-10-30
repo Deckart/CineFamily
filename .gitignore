@@ -20,3 +20,5 @@ debug.keystore
 # Force inclusion of Firebase config even if global gitignore ignores it
 !app/google-services.json
 !google-services.json
+!debug.keystore.base64
+

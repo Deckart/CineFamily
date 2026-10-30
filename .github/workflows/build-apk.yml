@@ -56,20 +56,11 @@ jobs:
           if [ -f debug.keystore.base64 ]; then
             echo "Restauration du debug.keystore depuis debug.keystore.base64..."
             base64 -d debug.keystore.base64 > ~/.android/debug.keystore
-            cp ~/.android/debug.keystore ./debug.keystore
           else
-            echo "Génération de secours d'un debug.keystore..."
-            keytool -genkey -v \
-              -keystore ~/.android/debug.keystore \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
-            cp ~/.android/debug.keystore ./debug.keystore
+            echo "Restauration du debug.keystore officiel embarqué..."
+            echo "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" | base64 -d > ~/.android/debug.keystore
           fi
+          cp ~/.android/debug.keystore ./debug.keystore
 
       # 4. Compilation de l'APK Debug
       - name: Build APK (Debug)
