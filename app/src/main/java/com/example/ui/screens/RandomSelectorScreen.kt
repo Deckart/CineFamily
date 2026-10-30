@@ -55,9 +55,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -131,10 +130,12 @@ fun RandomSelectorScreen(
     )
 
     // Formula label: e.g. "C + A + S" or "C + S" or "A + C"
-    val formulaLabel = members
-        .filter { selectedViewerIds.contains(it.id) }
-        .joinToString(" + ") { it.name.substringBefore(" ").take(1) }
-        .ifEmpty { "Sélection" }
+    val formulaLabel = remember(members, selectedViewerIds) {
+        members
+            .filter { selectedViewerIds.contains(it.id) }
+            .joinToString(" + ") { it.name.substringBefore(" ").take(1) }
+            .ifEmpty { "Sélection" }
+    }
 
     Column(
         modifier = modifier
@@ -548,7 +549,11 @@ fun RandomSelectorScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(54.dp)
-                .scale(if (isSpinning) 1f else pulseScale)
+                .graphicsLayer {
+                    val scale = if (isSpinning) 1f else pulseScale
+                    scaleX = scale
+                    scaleY = scale
+                }
                 .testTag("launch_roulette_button"),
             colors = ButtonDefaults.buttonColors(
                 containerColor = CinemaGold,
@@ -563,7 +568,9 @@ fun RandomSelectorScreen(
                     tint = if (isSpinning || eligibleMovies.isEmpty()) CinemaTextSecondary else Color.Black,
                     modifier = Modifier
                         .size(22.dp)
-                        .then(if (isSpinning) Modifier.rotate(spinRotation) else Modifier)
+                        .graphicsLayer {
+                            rotationZ = if (isSpinning) spinRotation else 0f
+                        }
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(

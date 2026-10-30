@@ -737,10 +737,12 @@ private fun AdminFamilyView(
 
     // Deploy Update Dialog
     if (showDeployUpdateDialog) {
-        var targetCode by remember { mutableStateOf((appUpdateInfo?.latestVersionCode ?: currentVersionCode).plus(1).toString()) }
-        var targetName by remember { mutableStateOf(appUpdateInfo?.latestVersionName ?: "1.1") }
-        var targetNotes by remember { mutableStateOf(appUpdateInfo?.releaseNotes ?: "Nouvelles fonctionnalités de tirage au sort et sélections de films.") }
-        var targetUrl by remember { mutableStateOf(appUpdateInfo?.apkUrl ?: "demo") }
+        val defaultUrl = appUpdateInfo?.apkUrl?.takeIf { it.isNotBlank() && !it.startsWith("demo", ignoreCase = true) }
+            ?: com.example.data.repository.MovieRepository.PERMANENT_APK_URL
+        var targetCode by remember { mutableStateOf((appUpdateInfo?.latestVersionCode?.coerceAtLeast(currentVersionCode) ?: currentVersionCode).toString()) }
+        var targetName by remember { mutableStateOf(appUpdateInfo?.latestVersionName ?: currentVersionName) }
+        var targetNotes by remember { mutableStateOf(appUpdateInfo?.releaseNotes?.ifBlank { "Mise à jour v$currentVersionName : sélecteur par genre et durée (< 2h / > 2h), et optimisations de fluidité." } ?: "Mise à jour v$currentVersionName : sélecteur par genre et durée (< 2h / > 2h), et optimisations de fluidité.") }
+        var targetUrl by remember { mutableStateOf(defaultUrl) }
         var isMandatory by remember { mutableStateOf(appUpdateInfo?.isMandatory ?: false) }
 
         Dialog(onDismissRequest = { showDeployUpdateDialog = false }) {

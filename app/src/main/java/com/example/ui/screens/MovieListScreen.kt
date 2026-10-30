@@ -401,7 +401,11 @@ fun MovieListScreen(
                     .fillMaxSize()
                     .testTag("movie_list")
             ) {
-                items(movies, key = { it.id }) { movie ->
+                items(
+                    items = movies,
+                    key = { it.id },
+                    contentType = { "movie_item" }
+                ) { movie ->
                     MovieItemCard(
                         movie = movie,
                         members = members,
@@ -428,22 +432,28 @@ fun MovieItemCard(
     onUpvote: () -> Unit,
     onToggleInterested: ((Movie, FamilyMember) -> Unit)? = null
 ) {
-    val allMemberIds = members.map { it.id }.toSet()
-    val interestedMemberIds: Set<String> = when (movie.targetAudienceType) {
-        "FAMILY" -> allMemberIds
-        "SOLO" -> {
-            val ids = movie.allowedMemberIds.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-            if (ids.isNotEmpty() && ids.first() != "all") ids.toSet()
-            else setOf(movie.addedByMemberId).filter { it.isNotEmpty() }.toSet()
+    val interestedMemberIds: Set<String> = remember(movie.targetAudienceType, movie.allowedMemberIds, movie.addedByMemberId, members) {
+        val allMemberIds = members.map { it.id }.toSet()
+        when (movie.targetAudienceType) {
+            "FAMILY" -> allMemberIds
+            "SOLO" -> {
+                val ids = movie.allowedMemberIds.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                if (ids.isNotEmpty() && ids.first() != "all") ids.toSet()
+                else setOf(movie.addedByMemberId).filter { it.isNotEmpty() }.toSet()
+            }
+            "GROUP" -> {
+                if (movie.allowedMemberIds == "all") allMemberIds
+                else movie.allowedMemberIds.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+            }
+            else -> allMemberIds
         }
-        "GROUP" -> {
-            if (movie.allowedMemberIds == "all") allMemberIds
-            else movie.allowedMemberIds.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-        }
-        else -> allMemberIds
     }
-    val interestedMembers = members.filter { interestedMemberIds.contains(it.id) }
-    val isUserInterested = activeMember != null && interestedMemberIds.contains(activeMember.id)
+    val interestedMembers = remember(interestedMemberIds, members) {
+        members.filter { interestedMemberIds.contains(it.id) }
+    }
+    val isUserInterested = remember(activeMember, interestedMemberIds) {
+        activeMember != null && interestedMemberIds.contains(activeMember.id)
+    }
 
     Card(
         shape = RoundedCornerShape(16.dp),

@@ -205,47 +205,78 @@ fun UpdateDialog(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
+                val effectiveApkUrl = if (updateInfo.apkUrl.isBlank() || updateInfo.apkUrl.startsWith("demo", ignoreCase = true) || !updateInfo.apkUrl.startsWith("http", ignoreCase = true)) {
+                    com.example.data.repository.MovieRepository.PERMANENT_APK_URL
+                } else {
+                    updateInfo.apkUrl
+                }
+
                 // Status & Actions depending on DownloadState
                 when (downloadState) {
                     is DownloadState.Idle -> {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            if (!updateInfo.isMandatory) {
-                                OutlinedButton(
-                                    onClick = onDismiss,
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = CinemaTextSecondary),
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                if (!updateInfo.isMandatory) {
+                                    OutlinedButton(
+                                        onClick = onDismiss,
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = CinemaTextSecondary),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("dismiss_update_btn")
+                                    ) {
+                                        Text("Plus tard", fontSize = 13.sp)
+                                    }
+                                }
+
+                                Button(
+                                    onClick = {
+                                        onStartDownload(effectiveApkUrl, updateInfo.latestVersionCode)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = CinemaGold, contentColor = Color.Black),
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier
                                         .weight(1f)
-                                        .testTag("dismiss_update_btn")
+                                        .testTag("download_and_install_btn")
                                 ) {
-                                    Text("Plus tard", fontSize = 13.sp)
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Mettre à jour",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
                                 }
                             }
 
-                            Button(
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            OutlinedButton(
                                 onClick = {
-                                    onStartDownload(updateInfo.apkUrl, updateInfo.latestVersionCode)
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.example.data.repository.MovieRepository.PERMANENT_RELEASE_PAGE_URL)).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {}
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = CinemaGold, contentColor = Color.Black),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = CinemaGold),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, CinemaGold.copy(alpha = 0.5f)),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("download_and_install_btn")
+                                    .fillMaxWidth()
+                                    .testTag("open_github_release_idle_btn")
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Download,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                Icon(imageVector = Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(16.dp), tint = CinemaGold)
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Mettre à jour",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
-                                )
+                                Text("Secours : Page GitHub des versions", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                             }
                         }
                     }
@@ -391,29 +422,55 @@ fun UpdateDialog(
                                 fontSize = 12.sp,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            if (updateInfo.apkUrl.isNotBlank() && updateInfo.apkUrl.startsWith("http", ignoreCase = true)) {
-                                Button(
-                                    onClick = {
-                                        try {
-                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo.apkUrl)).apply {
-                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            }
-                                            context.startActivity(intent)
-                                        } catch (_: Exception) {}
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = CinemaGold, contentColor = Color.Black),
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("open_browser_download_btn")
-                                ) {
-                                    Icon(imageVector = Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Télécharger via le navigateur", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Action 1: Télécharger l'APK directement via le navigateur (Lien permanent)
+                            Button(
+                                onClick = {
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.example.data.repository.MovieRepository.PERMANENT_APK_URL)).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {}
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = CinemaGold, contentColor = Color.Black),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("download_permanent_apk_btn")
+                            ) {
+                                Icon(imageVector = Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Télécharger l'APK directement (Lien permanent)", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Action 2: Secours Page GitHub des Releases
+                            OutlinedButton(
+                                onClick = {
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.example.data.repository.MovieRepository.PERMANENT_RELEASE_PAGE_URL)).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {}
+                                },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = CinemaGold),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, CinemaGold.copy(alpha = 0.5f)),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("open_github_release_error_btn")
+                            ) {
+                                Icon(imageVector = Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(16.dp), tint = CinemaGold)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Secours : Ouvrir GitHub Releases", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -428,7 +485,7 @@ fun UpdateDialog(
                                 }
                                 Button(
                                     onClick = {
-                                        onStartDownload(updateInfo.apkUrl, updateInfo.latestVersionCode)
+                                        onStartDownload(effectiveApkUrl, updateInfo.latestVersionCode)
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = CinemaDarkSurfaceVariant, contentColor = CinemaGold),
                                     border = androidx.compose.foundation.BorderStroke(1.dp, CinemaGold.copy(alpha = 0.5f)),

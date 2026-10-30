@@ -361,17 +361,46 @@ class MovieRepository(
         db.collection("app_config").document("version").addSnapshotListener { snapshot, error ->
             if (error != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
             val data = snapshot.data ?: return@addSnapshotListener
+            val storedCode = (data["latestVersionCode"] as? Number)?.toInt() ?: 1
+            val storedName = data["latestVersionName"] as? String ?: "1.0"
+            var rawApkUrl = data["apkUrl"] as? String ?: ""
+            if (rawApkUrl.isBlank() || rawApkUrl.startsWith("demo", ignoreCase = true) || rawApkUrl.contains("objects.githubusercontent.com")) {
+                rawApkUrl = PERMANENT_APK_URL
+            }
+
             val info = com.example.data.model.AppUpdateInfo(
-                latestVersionCode = (data["latestVersionCode"] as? Number)?.toInt() ?: 1,
-                latestVersionName = data["latestVersionName"] as? String ?: "1.0",
+                latestVersionCode = storedCode,
+                latestVersionName = storedName,
                 releaseNotes = data["releaseNotes"] as? String ?: "",
-                apkUrl = data["apkUrl"] as? String ?: "",
+                apkUrl = rawApkUrl,
                 releaseDate = data["releaseDate"] as? String ?: "",
                 isMandatory = data["isMandatory"] as? Boolean ?: false,
                 updatedAtMillis = (data["updatedAtMillis"] as? Number)?.toLong() ?: System.currentTimeMillis()
             )
             _appUpdateInfo.value = info
+
+            // Nettoyage automatique si l'ancien enregistrement v1.1 ou l'URL 'demo' traîne dans Firestore
+            if (storedCode < 4 || (data["apkUrl"] as? String)?.startsWith("demo", ignoreCase = true) == true) {
+                externalScope.launch {
+                    val correctedInfo = com.example.data.model.AppUpdateInfo(
+                        latestVersionCode = 4,
+                        latestVersionName = "1.3",
+                        releaseNotes = "Sélecteur de soirée par genre et durée (< 2h / > 2h), interface épurée et optimisations de fluidité.",
+                        apkUrl = PERMANENT_APK_URL,
+                        releaseDate = "30/10/2026",
+                        isMandatory = false,
+                        updatedAtMillis = System.currentTimeMillis()
+                    )
+                    publishAppUpdate(correctedInfo)
+                }
+            }
         }
+    }
+
+    companion object {
+        const val GITHUB_REPO_URL = "https://github.com/Deckart/CineFamily"
+        const val PERMANENT_APK_URL = "https://github.com/Deckart/CineFamily/releases/latest/download/CineFamily.apk"
+        const val PERMANENT_RELEASE_PAGE_URL = "https://github.com/Deckart/CineFamily/releases/latest"
     }
 
     val appUpdateInfo: kotlinx.coroutines.flow.StateFlow<com.example.data.model.AppUpdateInfo?> = _appUpdateInfo

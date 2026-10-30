@@ -94,6 +94,28 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // Configuration haute performance du cache Coil pour un défilement ultra-fluide des affiches
+        try {
+            val imageLoader = coil.ImageLoader.Builder(applicationContext)
+                .memoryCache {
+                    coil.memory.MemoryCache.Builder(applicationContext)
+                        .maxSizePercent(0.25)
+                        .build()
+                }
+                .diskCache {
+                    coil.disk.DiskCache.Builder()
+                        .directory(applicationContext.cacheDir.resolve("image_cache"))
+                        .maxSizeBytes(50L * 1024 * 1024)
+                        .build()
+                }
+                .crossfade(true)
+                .respectCacheHeaders(false)
+                .build()
+            coil.Coil.setImageLoader(imageLoader)
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Failed to configure custom Coil ImageLoader", e)
+        }
+
         val database = AppDatabase.getDatabase(applicationContext, lifecycleScope)
         val repository = MovieRepository(applicationContext, database.movieDao(), database.familyMemberDao())
         val sessionManager = SessionManager(applicationContext)
